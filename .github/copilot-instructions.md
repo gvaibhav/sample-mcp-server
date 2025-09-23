@@ -49,7 +49,6 @@ The server implements the complete MCP specification:
 ### **Notifications**
 - Real-time activity tracking and notifications
 - Error reporting and logging
-
 ## Development Guidelines
 - Follow MCP specification for stdio transport
 - Maintain security restrictions (current directory only)
