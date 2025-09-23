@@ -1,0 +1,33 @@
+{
+  "name": "simple-mcp-server",
+  "version": "1.0.0",
+  "description": "A simple MCP server with read/write tools, resources, notifications, and prompts",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node build/index.js",
+    "dev": "tsc && node build/index.js",
+    "clean": "rmdir /s /q build 2>nul || true"
+  },
+  "files": [
+    "build"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "server",
+    "tools",
+    "resources"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.0.0"
+  }
+}
