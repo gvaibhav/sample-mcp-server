@@ -97,7 +97,7 @@ temp/
 **/.temp/
 temporary/
 **/temporary/
-
+test_env/
 # Temporary files
 *.tmp
 *.temp

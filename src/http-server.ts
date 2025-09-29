@@ -8,10 +8,14 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 // Configuration
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "8087");
 const HTTP_HOST = process.env.HTTP_HOST || "0.0.0.0";
+
+// Store transports by session ID
+const transports: Record<string, StreamableHTTPServerTransport> = {};
 
 // Comprehensive MCP Discovery endpoint data
 const MCP_DISCOVERY = {
@@ -25,7 +29,7 @@ const MCP_DISCOVERY = {
     "transports": {
       "http": {
         "url": `http://${HTTP_HOST}:${HTTP_PORT}/mcp`,
-        "methods": ["GET", "POST"],
+        "methods": ["GET", "POST", "DELETE"],
         "capabilities": {
           "streaming": true,
           "sse": true
@@ -224,8 +228,8 @@ const MCP_DISCOVERY = {
         "cors": {
           "enabled": true,
           "origins": ["*"],
-          "methods": ["GET", "POST", "OPTIONS"],
-          "headers": ["Content-Type", "Authorization"]
+          "methods": ["GET", "POST", "OPTIONS", "DELETE"],
+          "headers": ["Content-Type", "Authorization", "Mcp-Session-Id", "Accept", "Last-Event-ID", "Mcp-Protocol-Version"]
         },
         "https": {
           "required": false,
@@ -257,8 +261,9 @@ async function startHTTPServer() {
   // CORS middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Accept, Last-Event-ID, Mcp-Protocol-Version');
+    res.header('Access-Control-Expose-Headers', 'Mcp-Session-Id');
     if (req.method === 'OPTIONS') {
       res.sendStatus(200);
     } else {
@@ -295,28 +300,137 @@ async function startHTTPServer() {
       }
     });
   });
-  
-  // Create HTTP server
-  const httpServer = createServer(app);
-  
-  // Set up StreamableHTTP transport
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-    onsessioninitialized: async (sessionId: string) => {
-      console.error(`New MCP session initialized: ${sessionId}`);
-    },
-    onsessionclosed: async (sessionId: string) => {
-      console.error(`MCP session closed: ${sessionId}`);
+
+  // MCP POST handler
+  app.post('/mcp', async (req: Request, res: Response) => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    
+    try {
+      // Check if this is an initialization request
+      const isInit = req.body && 
+                     (isInitializeRequest(req.body) || 
+                      (Array.isArray(req.body) && req.body.some(isInitializeRequest)));
+      
+      if (isInit || !sessionId) {
+        // Create new transport for initialization or when no session ID
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (sessionId: string) => {
+            console.error(`Session initialized with ID: ${sessionId}`);
+            transports[sessionId] = transport;
+          }
+        });
+
+        // Set up onclose handler to clean up transport when closed
+        transport.onclose = () => {
+          const sid = transport.sessionId;
+          if (sid && transports[sid]) {
+            console.error(`Transport closed for session ${sid}, removing from transports map`);
+            delete transports[sid];
+          }
+        };
+
+        // Connect the transport to the MCP server
+        await server.connect(transport);
+        // Pass the pre-parsed body as the third parameter
+        await transport.handleRequest(req, res, req.body);
+        return;
+      } else {
+        // Use existing transport for established session
+        const transport = transports[sessionId];
+        if (!transport) {
+          res.status(404).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32000,
+              message: 'Session not found',
+            },
+            id: null,
+          });
+          return;
+        }
+        
+        // Pass the pre-parsed body as the third parameter
+        await transport.handleRequest(req, res, req.body);
+      }
+    } catch (error) {
+      console.error('Error handling MCP request:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal server error',
+          },
+          id: null,
+        });
+      }
+    }
+  });
+
+  // MCP GET handler for SSE streams
+  app.get('/mcp', async (req: Request, res: Response) => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    
+    if (!sessionId || !transports[sessionId]) {
+      res.status(400).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32000,
+          message: 'Invalid or missing session ID',
+        },
+        id: null,
+      });
+      return;
+    }
+
+    console.error(`Establishing SSE stream for session ${sessionId}`);
+    const transport = transports[sessionId];
+    await transport.handleRequest(req, res);
+  });
+
+  // MCP DELETE handler for session termination
+  app.delete('/mcp', async (req: Request, res: Response) => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    
+    if (!sessionId || !transports[sessionId]) {
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32000,
+          message: 'Session not found',
+        },
+        id: null,
+      });
+      return;
+    }
+
+    try {
+      const transport = transports[sessionId];
+      await transport.close();
+      delete transports[sessionId];
+      console.error(`Session ${sessionId} terminated`);
+      
+      res.status(200).json({
+        jsonrpc: '2.0',
+        result: { success: true },
+        id: null,
+      });
+    } catch (error) {
+      console.error('Error terminating session:', error);
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal server error',
+        },
+        id: null,
+      });
     }
   });
   
-  // Handle MCP requests
-  app.use('/mcp', (req: Request, res: Response) => {
-    transport.handleRequest(req, res);
-  });
-  
-  // Start the MCP server with HTTP transport
-  await server.connect(transport);
+  // Create HTTP server
+  const httpServer = createServer(app);
   
   httpServer.listen(HTTP_PORT, HTTP_HOST, () => {
     console.error(`✅ MCP HTTP server running on http://${HTTP_HOST}:${HTTP_PORT}`);
@@ -325,9 +439,22 @@ async function startHTTPServer() {
   });
   
   // Graceful shutdown
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
     console.error('Shutting down HTTP server...');
+    
+    // Close all active transports
+    for (const sessionId in transports) {
+      try {
+        console.error(`Closing transport for session ${sessionId}`);
+        await transports[sessionId].close();
+        delete transports[sessionId];
+      } catch (error) {
+        console.error(`Error closing transport for session ${sessionId}:`, error);
+      }
+    }
+    
     httpServer.close(() => {
+      console.error('Server shutdown complete');
       process.exit(0);
     });
   });
