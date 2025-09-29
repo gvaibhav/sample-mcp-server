@@ -579,6 +579,9 @@ Format the response in a clear, organized manner.`
  * SERVER STARTUP AND CONNECTION
  */
 
+// Export the server for reuse in HTTP transport
+export { server };
+
 async function main() {
   try {
     // Create stdio transport

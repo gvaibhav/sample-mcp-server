@@ -57,6 +57,8 @@ The server implements the complete MCP specification:
 - Handle all MCP capabilities with proper validation
 - Use Zod for schema validation
 - Implement proper error responses for all operations
+- Practice test-driven development: write or update a failing test before implementing any feature or fix, then refactor with tests staying green.
+- When adding Python automation or service code, adopt the built-in `unittest` framework exclusively and avoid introducing `pytest`.
 
 ## Security Model
 - File operations restricted to current working directory
@@ -65,6 +67,10 @@ The server implements the complete MCP specification:
 - Proper error handling and sanitization
 
 ## Testing
+### Approach
+- Every change begins with a failing `unittest` case (or set of cases) that captures the desired behavior before code changes.
+- Unit and integration coverage should live under a structured Python package (e.g., `tests/`) executed via `python -m unittest`.
+
 ### MCP Inspector
 ```bash
 npm run build

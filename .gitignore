@@ -91,6 +91,23 @@ tmp/
 temp/
 .tmp/
 .temp/
+**/tmp/
+**/temp/
+**/.tmp/
+**/.temp/
+temporary/
+**/temporary/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.backup
+*~
+.#*
+\#*#
 
 # Logs
 logs
@@ -117,6 +134,78 @@ Desktop.ini
 *.mcp-session
 .mcp-cache/
 
+# Development and testing temp files
+test-output/
+test-results/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Python virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.env/
+virtualenv/
+.virtualenv/
+
+# Docker temp files
+.dockerignore.bak
+docker-compose.override.yml
+.docker/
+
+# Build and cache directories
+.cache/
+.vscode/
+.vs/
+.vscode-test/
+
 # Windows
 $RECYCLE.BIN/
 *.lnk
+*.stackdump
+
+# System and editor temp files
+*~
+.#*
+\#*#
+.*.swp
+.*.swo
+*.orig
+*.rej
+.*.tmp
+Session.vim
+.netrwhist
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Archive and compression temp files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+*.bz2
+*.xz
+*.tgz
+
+# Package managers temp
+.pnpm-debug.log*
+.yarn-error.log*
+.yarn-integrity
+yarn.lock.bak
+package-lock.json.bak

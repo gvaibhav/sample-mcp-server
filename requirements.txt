@@ -1,0 +1,2 @@
+# Python dependencies for MCP HTTP server
+# Using Node.js with official MCP SDK instead
