@@ -13,26 +13,236 @@ import { randomUUID } from "crypto";
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "8087");
 const HTTP_HOST = process.env.HTTP_HOST || "0.0.0.0";
 
-// MCP Discovery endpoint data
+// Comprehensive MCP Discovery endpoint data
 const MCP_DISCOVERY = {
   "modelcontextprotocol": {
     "version": "2024-11-05",
+    "server": {
+      "name": "simple-mcp-server",
+      "version": "1.0.0",
+      "description": "A comprehensive MCP server with tools, resources, prompts, sampling, and elicitation capabilities"
+    },
     "transports": {
       "http": {
         "url": `http://${HTTP_HOST}:${HTTP_PORT}/mcp`,
         "methods": ["GET", "POST"],
         "capabilities": {
-          "streaming": true
+          "streaming": true,
+          "sse": true
         }
       }
     },
     "capabilities": {
-      "tools": { "listChanged": true },
-      "resources": { "listChanged": true },
-      "prompts": { "listChanged": true },
-      "sampling": {},
-      "elicitation": {},
-      "roots": { "listChanged": true }
+      "tools": { 
+        "listChanged": true,
+        "available": [
+          {
+            "name": "read-file",
+            "title": "Read File",
+            "description": "Read content from a file",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "The file path to read from"
+                }
+              },
+              "required": ["path"]
+            }
+          },
+          {
+            "name": "write-file",
+            "title": "Write File",
+            "description": "Write content to a file",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "The file path to write to"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "The content to write"
+                },
+                "append": {
+                  "type": "boolean",
+                  "description": "Whether to append to existing file",
+                  "default": false
+                }
+              },
+              "required": ["path", "content"]
+            }
+          },
+          {
+            "name": "summarize-text",
+            "title": "Summarize Text",
+            "description": "Summarize any text using an LLM via sampling",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "Text to summarize"
+                },
+                "maxTokens": {
+                  "type": "number",
+                  "description": "Maximum tokens for the summary (default: 200)",
+                  "default": 200
+                }
+              },
+              "required": ["text"]
+            }
+          },
+          {
+            "name": "interactive-booking",
+            "title": "Interactive Booking",
+            "description": "Make a booking with interactive user input via elicitation",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "service": {
+                  "type": "string",
+                  "description": "Service to book (e.g., restaurant, hotel)"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "Initial booking date"
+                },
+                "partySize": {
+                  "type": "number",
+                  "description": "Number of people"
+                }
+              },
+              "required": ["service", "date", "partySize"]
+            }
+          }
+        ]
+      },
+      "resources": { 
+        "listChanged": true,
+        "available": [
+          {
+            "name": "server-info",
+            "uri": "info://server",
+            "title": "Server Information",
+            "description": "Information about this MCP server",
+            "mimeType": "application/json"
+          },
+          {
+            "name": "file-content",
+            "uriTemplate": "file://{path}",
+            "title": "File Content",
+            "description": "Read content from a file path",
+            "mimeType": "text/plain"
+          },
+          {
+            "name": "directory-listing",
+            "uriTemplate": "dir://{path}",
+            "title": "Directory Listing", 
+            "description": "List contents of a directory",
+            "mimeType": "application/json"
+          }
+        ]
+      },
+      "prompts": { 
+        "listChanged": true,
+        "available": [
+          {
+            "name": "analyze-file",
+            "title": "Analyze File",
+            "description": "Analyze a file's content and structure",
+            "argsSchema": {
+              "type": "object",
+              "properties": {
+                "filepath": {
+                  "type": "string",
+                  "description": "Path to the file to analyze"
+                },
+                "focus": {
+                  "type": "string",
+                  "enum": ["structure", "content", "both"],
+                  "description": "What to focus the analysis on",
+                  "default": "both"
+                }
+              },
+              "required": ["filepath"]
+            }
+          },
+          {
+            "name": "dev-workflow",
+            "title": "Development Workflow",
+            "description": "Get guidance on development workflow and best practices",
+            "argsSchema": {
+              "type": "object",
+              "properties": {
+                "task": {
+                  "type": "string",
+                  "description": "Development task to get guidance on"
+                }
+              },
+              "required": ["task"]
+            }
+          },
+          {
+            "name": "server-status",
+            "title": "Server Status",
+            "description": "Get comprehensive server status and statistics",
+            "argsSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "sampling": {
+        "supported": true,
+        "description": "Server can request LLM completions from clients for text summarization and analysis"
+      },
+      "elicitation": {
+        "supported": true,
+        "description": "Interactive user input collection with schema validation for booking workflows"
+      },
+      "roots": { 
+        "listChanged": true,
+        "description": "File system root directory management within security bounds",
+        "restrictions": "Access limited to current working directory and subdirectories"
+      }
+    },
+    "authentication": {
+      "supported": ["none"],
+      "description": "Currently no authentication required. Future versions may support API keys, OAuth2, or bearer tokens",
+      "mechanisms": {
+        "none": {
+          "type": "none",
+          "description": "No authentication required for this development server"
+        }
+      },
+      "security": {
+        "cors": {
+          "enabled": true,
+          "origins": ["*"],
+          "methods": ["GET", "POST", "OPTIONS"],
+          "headers": ["Content-Type", "Authorization"]
+        },
+        "https": {
+          "required": false,
+          "recommended": true,
+          "description": "HTTPS recommended for production deployments"
+        },
+        "rateLimit": {
+          "enabled": false,
+          "description": "No rate limiting currently implemented"
+        }
+      }
+    },
+    "endpoints": {
+      "discovery": "/.well-known/mcp",
+      "transport": "/mcp",
+      "health": "/health",
+      "documentation": "/"
     }
   }
 };
